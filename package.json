@@ -1,0 +1,85 @@
+{
+	"name": "@octoberswimmer/aer-sf-plugin",
+	"description": "Salesforce CLI plugin that runs Apex tests locally using aer.",
+	"version": "0.0.1",
+	"author": "Christian G. Warden",
+	"bugs": "https://github.com/octoberswimmer/aer-sf-plugin/issues",
+	"homepage": "https://github.com/octoberswimmer/aer-sf-plugin",
+	"repository": "octoberswimmer/aer-sf-plugin",
+	"type": "module",
+	"exports": "./lib/index.js",
+	"engines": {
+		"node": ">=18.0.0"
+	},
+	"main": "lib/index.js",
+	"files": [
+		"/bin",
+		"/lib",
+		"/messages",
+		"/oclif.manifest.json"
+	],
+	"keywords": [
+		"aer",
+		"apex",
+		"force",
+		"salesforce",
+		"salesforcedx",
+		"sf",
+		"sf-plugin",
+		"sfdx",
+		"sfdx-plugin"
+	],
+	"license": "BSD-3-Clause",
+	"oclif": {
+		"commands": "./lib/commands",
+		"bin": "sf",
+		"topicSeparator": " ",
+		"devPlugins": [
+			"@oclif/plugin-help"
+		],
+		"topics": {
+			"aer": {
+				"description": "Run Apex code and tests locally using aer.",
+				"subtopics": {
+					"apex": {
+						"description": "Work with Apex code locally via aer.",
+						"subtopics": {
+							"run": {
+								"description": "Run Apex code or tests locally via aer."
+							}
+						}
+					}
+				}
+			}
+		},
+		"flexibleTaxonomy": true
+	},
+	"dependencies": {
+		"@oclif/core": "^4",
+		"@salesforce/core": "^8",
+		"@salesforce/sf-plugins-core": "^12",
+		"minimatch": "^9"
+	},
+	"devDependencies": {
+		"@types/chai": "^4.3.16",
+		"@types/mocha": "^10.0.6",
+		"@types/node": "^20.12.12",
+		"chai": "^4.4.1",
+		"mocha": "^10.4.0",
+		"oclif": "^4.14.0",
+		"ts-node": "^10.9.2",
+		"typescript": "^5.4.5"
+	},
+	"scripts": {
+		"build": "tsc -p .",
+		"compile": "tsc -p . --pretty --incremental",
+		"clean": "rm -rf lib oclif.manifest.json .tsbuildinfo",
+		"prepack": "yarn build && oclif manifest && oclif readme",
+		"postpack": "rm -f oclif.manifest.json",
+		"test": "mocha \"test/**/*.test.ts\"",
+		"version": "oclif readme"
+	},
+	"publishConfig": {
+		"access": "public"
+	}
+}

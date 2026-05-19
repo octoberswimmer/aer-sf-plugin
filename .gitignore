@@ -1,0 +1,16 @@
+node_modules/
+lib/
+*.tsbuildinfo
+.tsbuildinfo
+oclif.manifest.json
+oclif.lock
+.nyc_output/
+coverage/
+.DS_Store
+.idea/
+.vscode/
+yarn-error.log
+npm-error.log
+package-lock.json
+*.tgz
+tmp/
