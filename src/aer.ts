@@ -30,13 +30,9 @@ export function buildAerArgs(inv: AerInvocation): string[] {
 	return args;
 }
 
-export function aerBinary(): string {
-	return process.env.AER_BIN ?? 'aer';
-}
-
-export async function runAer(args: string[], cwd: string): Promise<number> {
+export async function runAer(binaryPath: string, args: string[], cwd: string): Promise<number> {
 	return new Promise((resolvePromise, rejectPromise) => {
-		const child = spawn(aerBinary(), args, {
+		const child = spawn(binaryPath, args, {
 			cwd,
 			stdio: 'inherit',
 		});
@@ -44,7 +40,7 @@ export async function runAer(args: string[], cwd: string): Promise<number> {
 			if (err.code === 'ENOENT') {
 				rejectPromise(
 					new Error(
-						`Could not find the 'aer' binary on PATH. Install aer from https://github.com/octoberswimmer/aer-dist or set AER_BIN to its absolute path.`,
+						`Could not execute aer at ${binaryPath}. The file may have been moved or deleted.`,
 					),
 				);
 				return;

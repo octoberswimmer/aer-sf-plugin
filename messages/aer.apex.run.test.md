@@ -13,7 +13,12 @@ Source is staged into a temporary directory before invoking aer. The staging ste
 1. When the same Apex class name appears in more than one packageDirectories entry, the copy whose full path sorts alphabetically last wins.
 2. The `replacements` configuration in sfdx-project.json (stringToReplace / regexToReplace + replaceWithFile / replaceWithEnv) is applied to file contents during staging.
 
-The `aer` binary (https://github.com/octoberswimmer/aer-dist) must be installed and on PATH. Set the `AER_BIN` environment variable to override the path.
+The `aer` binary (https://github.com/octoberswimmer/aer-dist) is resolved in the following order:
+
+1. The `AER_BIN` environment variable, when set to an executable file.
+2. A copy previously downloaded by this plugin (stored under a platform-specific data directory, e.g. `~/.local/share/aer-sf-plugin/aer-bin/`).
+3. `aer` discovered on `PATH`.
+4. If none of the above match and the terminal is interactive, you'll be prompted to download the latest release for your platform from GitHub; the binary is then stored in the plugin's data directory and used for subsequent runs.
 
 # examples
 

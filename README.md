@@ -20,9 +20,10 @@ copy.
 ## Requirements
 
 - [Salesforce CLI](https://developer.salesforce.com/tools/salesforcecli) (`sf`)
-- [aer](https://github.com/octoberswimmer/aer-dist) on `PATH` (or set
-  `AER_BIN=/abs/path/to/aer`)
 - Node.js >= 18
+- [aer](https://github.com/octoberswimmer/aer-dist) — the plugin will offer to
+  download the right build for your platform on first use if it can't find one
+  already (see [Locating the aer binary](#locating-the-aer-binary) below).
 
 ## Install
 
@@ -63,6 +64,31 @@ With code coverage:
 ```
 sf aer apex run test --code-coverage --output-dir test-results
 ```
+
+## Locating the aer binary
+
+When the plugin needs to invoke `aer`, it tries these sources in order:
+
+1. The `AER_BIN` environment variable, when it points to an executable file.
+2. A copy previously downloaded by this plugin, stored under a platform-specific
+   data directory:
+   - Linux: `$XDG_DATA_HOME/aer-sf-plugin/aer-bin/` (default
+     `~/.local/share/aer-sf-plugin/aer-bin/`)
+   - macOS: `~/Library/Application Support/aer-sf-plugin/aer-bin/`
+   - Windows: `%LOCALAPPDATA%\aer-sf-plugin\aer-bin\`
+3. `aer` discovered on `PATH`.
+4. If none of the above match and the terminal is interactive, the plugin asks
+   for confirmation, then downloads the latest
+   [aer-dist](https://github.com/octoberswimmer/aer-dist) release for your
+   platform, extracts it into the data directory above, and uses it for that
+   run and all later runs.
+
+To update a downloaded copy, delete the contents of the `aer-bin/` directory
+(or the whole `aer-sf-plugin/` directory) and the next run will offer to
+re-download.
+
+In non-interactive environments (CI, `--json`) the plugin will not prompt; set
+`AER_BIN` or install `aer` on `PATH` ahead of time.
 
 ## How source is staged
 

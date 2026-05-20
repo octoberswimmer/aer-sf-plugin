@@ -4,6 +4,7 @@ import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages, SfProject } from '@salesforce/core';
 import { stageSource, type Replacement, type PackageDirectory } from '../../../../staging.js';
 import { buildAerArgs, runAer } from '../../../../aer.js';
+import { ensureAerBinary } from '../../../../aerBinary.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@octoberswimmer/aer-sf-plugin', 'aer.apex.run.test');
@@ -129,6 +130,13 @@ export default class AerApexRunTest extends SfCommand<AerApexRunTestResult> {
 			this.warn(messages.getMessage('warn.ignoredFlags', [ignoredFlags.join(', ')]));
 		}
 
+		const aerPath = await ensureAerBinary({
+			allowPrompt: !this.jsonEnabled() && Boolean(process.stdin.isTTY),
+			confirm: (message) => this.confirm({ message }),
+			log: (m) => this.log(m),
+			warn: (m) => this.warn(m),
+		});
+
 		const staged = await stageSource({
 			projectRoot,
 			packageDirectories,
@@ -167,7 +175,7 @@ export default class AerApexRunTest extends SfCommand<AerApexRunTestResult> {
 
 		let exitCode = 0;
 		try {
-			exitCode = await runAer(args, projectRoot);
+			exitCode = await runAer(aerPath, args, projectRoot);
 		} finally {
 			await staged.cleanup();
 		}
