@@ -5,7 +5,10 @@
 	"author": "Christian G. Warden",
 	"bugs": "https://github.com/octoberswimmer/aer-sf-plugin/issues",
 	"homepage": "https://github.com/octoberswimmer/aer-sf-plugin",
-	"repository": "octoberswimmer/aer-sf-plugin",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/octoberswimmer/aer-sf-plugin.git"
+	},
 	"type": "module",
 	"exports": "./lib/index.js",
 	"engines": {
