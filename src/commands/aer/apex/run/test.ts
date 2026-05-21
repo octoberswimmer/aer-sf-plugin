@@ -4,7 +4,13 @@ import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages, SfProject } from '@salesforce/core';
 import { stageSource, type Replacement, type PackageDirectory } from '../../../../staging.js';
 import { buildAerArgs, runAer } from '../../../../aer.js';
-import { ensureAerBinary } from '../../../../aerBinary.js';
+import {
+	checkForUpdate,
+	ensureAerBinary,
+	installAerVersion,
+	recordPromptedVersion,
+	type PendingUpdate,
+} from '../../../../aerBinary.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@octoberswimmer/aer-sf-plugin', 'aer.apex.run.test');
@@ -130,12 +136,22 @@ export default class AerApexRunTest extends SfCommand<AerApexRunTestResult> {
 			this.warn(messages.getMessage('warn.ignoredFlags', [ignoredFlags.join(', ')]));
 		}
 
+		const interactive = !this.jsonEnabled() && Boolean(process.stdin.isTTY);
+
 		const aerPath = await ensureAerBinary({
-			allowPrompt: !this.jsonEnabled() && Boolean(process.stdin.isTTY),
-			confirm: (message) => this.confirm({ message }),
+			allowPrompt: interactive,
+			// Long timeout so a user with the prompt buried in scrollback still has
+			// time to react; default-no keeps CI/headless runs safe.
+			confirm: (message) => this.confirm({ message, ms: 5 * 60 * 1000, defaultAnswer: false }),
 			log: (m) => this.log(m),
 			warn: (m) => this.warn(m),
 		});
+
+		// Kick off the update check in parallel with staging and the test run.
+		// Errors are swallowed — we never want this to fail the command.
+		const updateCheck: Promise<PendingUpdate | null> = interactive
+			? checkForUpdate({ aerPath, log: (m) => this.log(m) }).catch(() => null)
+			: Promise.resolve(null);
 
 		const staged = await stageSource({
 			projectRoot,
@@ -184,11 +200,44 @@ export default class AerApexRunTest extends SfCommand<AerApexRunTestResult> {
 			this.warn(messages.getMessage('warn.aerExit', [String(exitCode)]));
 		}
 
+		await this.maybePromptForUpdate(updateCheck);
+
 		return {
 			stagedDir: staged.dir,
 			filters,
 			exitCode,
 		};
+	}
+
+	private async maybePromptForUpdate(check: Promise<PendingUpdate | null>): Promise<void> {
+		let update: PendingUpdate | null;
+		try {
+			update = await check;
+		} catch {
+			return;
+		}
+		if (!update) return;
+
+		this.log('');
+		const yes = await this.confirm({
+			message: messages.getMessage('prompt.updateAvailable', [update.installed, update.latest]),
+			ms: 5 * 60 * 1000,
+			defaultAnswer: false,
+		});
+		if (!yes) {
+			// Record only after the user has been asked and declined, so a
+			// failed prompt doesn't accidentally suppress future ones.
+			await recordPromptedVersion(update.latest).catch(() => {});
+			this.log(messages.getMessage('info.updateDeferred'));
+			return;
+		}
+
+		try {
+			const newPath = await installAerVersion(update.latest, { log: (m) => this.log(m) });
+			this.log(messages.getMessage('info.updateInstalled', [update.latest, newPath]));
+		} catch (err) {
+			this.warn(messages.getMessage('warn.updateFailed', [(err as Error).message]));
+		}
 	}
 }
 

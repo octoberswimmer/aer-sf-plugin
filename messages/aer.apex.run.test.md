@@ -121,3 +121,19 @@ aer exited with non-zero status %s.
 # error.noPackageDirectories
 
 sfdx-project.json must contain at least one packageDirectories entry.
+
+# prompt.updateAvailable
+
+A newer aer release is available (installed: %s, latest: %s). Update now?
+
+# info.updateDeferred
+
+Skipping aer update. You'll be prompted again the next time a new release is published.
+
+# info.updateInstalled
+
+Installed aer %s to %s. The new version will be used on the next run.
+
+# warn.updateFailed
+
+Failed to update aer: %s

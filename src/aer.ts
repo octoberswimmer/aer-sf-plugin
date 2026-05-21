@@ -35,6 +35,12 @@ export async function runAer(binaryPath: string, args: string[], cwd: string): P
 		const child = spawn(binaryPath, args, {
 			cwd,
 			stdio: 'inherit',
+			env: {
+				...process.env,
+				// Suppress aer's own version-check notification — the plugin
+				// surfaces its own prompt to upgrade.
+				AER_AUTOUPDATE_DISABLED: '1',
+			},
 		});
 		child.on('error', (err: NodeJS.ErrnoException) => {
 			if (err.code === 'ENOENT') {

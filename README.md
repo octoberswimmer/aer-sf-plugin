@@ -83,9 +83,22 @@ When the plugin needs to invoke `aer`, it tries these sources in order:
    platform, extracts it into the data directory above, and uses it for that
    run and all later runs.
 
-To update a downloaded copy, delete the contents of the `aer-bin/` directory
-(or the whole `aer-sf-plugin/` directory) and the next run will offer to
-re-download.
+### Update checks
+
+Once the plugin has downloaded its own copy of `aer`, each subsequent run starts
+a background GitHub query (rate-limited to one check every 12 hours) to see
+whether a newer release has been published. The query runs in parallel with
+staging and the test execution, so it does not slow tests down. After the test
+run finishes, if a newer release is available you'll be prompted to install it.
+Decline and the same version won't be re-offered until something newer ships.
+
+The check is skipped entirely when:
+
+- `AER_BIN` is set or `aer` is on `PATH` (i.e. the user manages their own copy).
+- The terminal is non-interactive (`--json`, no TTY).
+
+To force an update outside the 12-hour window, delete the contents of the
+`aer-bin/` directory (or the whole `aer-sf-plugin/` directory) and rerun.
 
 In non-interactive environments (CI, `--json`) the plugin will not prompt; set
 `AER_BIN` or install `aer` on `PATH` ahead of time.

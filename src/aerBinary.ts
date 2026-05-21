@@ -1,5 +1,6 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile, access } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile, access } from 'node:fs/promises';
 import { constants as fsConstants, createWriteStream } from 'node:fs';
+import { spawn } from 'node:child_process';
 import { delimiter, join, resolve } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { get as httpsGet } from 'node:https';
@@ -10,6 +11,8 @@ const BINARY_NAME = process.platform === 'win32' ? 'aer.exe' : 'aer';
 const VERSION_FILE = 'VERSION';
 const PLUGIN_DIR_NAME = 'aer-sf-plugin';
 const BIN_SUBDIR = 'aer-bin';
+const UPDATE_STATE_FILE = 'update-check.json';
+const UPDATE_CHECK_INTERVAL_MS = 1000 * 60 * 60 * 12; // 12 hours
 
 export type ConfirmFn = (message: string) => Promise<boolean>;
 export type LogFn = (message: string) => void;
@@ -101,6 +104,13 @@ export function _resetAerBinaryCache(): void {
 	resolving = null;
 }
 
+/** Module-private internals exposed for tests only. Not part of the public API. */
+export const _internals = {
+	get replaceBinary() {
+		return replaceBinary;
+	},
+};
+
 /**
  * Default storage directory for binaries downloaded by this plugin. Mirrors the
  * conventions used by `envPaths` / oclif: respects XDG on Linux, Library/Application
@@ -143,17 +153,78 @@ async function downloadAndExtract(storageDir: string, version: string, log: LogF
 		await downloadFile(url, archivePath);
 
 		log(`Extracting ${binaryName}…`);
-		const extractedPath = extractBinary(archivePath, binaryName, binDir);
+		const data = readBinaryFromArchive(archivePath, binaryName);
 
-		if (process.platform !== 'win32') {
-			await chmod(extractedPath, 0o755);
-		}
+		const target = join(binDir, binaryName);
+		await replaceBinary(binDir, binaryName, data, target);
 
 		await writeFile(join(binDir, VERSION_FILE), version, 'utf8');
-		log(`Installed aer ${version} to ${extractedPath}`);
-		return extractedPath;
+		return target;
 	} finally {
 		await rm(tempDir, { recursive: true, force: true });
+	}
+}
+
+/**
+ * Install a new binary at `target`, using the same atomic-rename strategy as
+ * `aer upgrade` so that an in-use executable (notably on Windows) doesn't
+ * cause the install to fail.
+ *
+ * Unix: write to `.{name}.new`, then rename over the target — atomic.
+ * Windows: write to `.{name}.new`, rename existing target to `.{name}.old`,
+ *          rename `.{name}.new` into place, then best-effort delete `.old`
+ *          (which may stay around briefly if the file is still held open).
+ */
+async function replaceBinary(binDir: string, binaryName: string, data: Buffer, target: string): Promise<void> {
+	const newPath = join(binDir, `.${binaryName}.new`);
+	const oldPath = join(binDir, `.${binaryName}.old`);
+
+	await rm(newPath, { force: true });
+	await writeFile(newPath, data, { mode: 0o755 });
+	if (process.platform !== 'win32') {
+		// writeFile honors `mode` only on file creation; chmod explicitly so
+		// a leftover `.new` from a prior failed install still ends up +x.
+		await chmod(newPath, 0o755);
+	}
+
+	if (process.platform === 'win32') {
+		await rm(oldPath, { force: true });
+
+		const targetExists = await pathExists(target);
+		if (targetExists) {
+			try {
+				await rename(target, oldPath);
+			} catch (err) {
+				await rm(newPath, { force: true }).catch(() => {});
+				throw new Error(`Failed to move current aer executable aside: ${(err as Error).message}`);
+			}
+		}
+
+		try {
+			await rename(newPath, target);
+		} catch (err) {
+			if (targetExists) {
+				await rename(oldPath, target).catch(() => {});
+			}
+			throw new Error(`Failed to move new aer executable into place: ${(err as Error).message}`);
+		}
+
+		// Best-effort cleanup; on Windows this may fail if the binary is
+		// still mapped into a running process. The leftover .old file will
+		// be removed by the next install.
+		await rm(oldPath, { force: true }).catch(() => {});
+	} else {
+		// rename(2) on Unix atomically replaces the target.
+		await rename(newPath, target);
+	}
+}
+
+async function pathExists(filePath: string): Promise<boolean> {
+	try {
+		await stat(filePath);
+		return true;
+	} catch {
+		return false;
 	}
 }
 
@@ -201,6 +272,197 @@ export async function readStoredVersion(storageDir: string): Promise<string | nu
 	} catch {
 		return null;
 	}
+}
+
+export type UpdateState = {
+	lastCheck?: number;
+	lastPromptVersion?: string;
+};
+
+export type PendingUpdate = {
+	installed: string;
+	latest: string;
+};
+
+export type UpdateCheckOptions = {
+	/** Absolute path to the aer binary to query for its --version. */
+	aerPath: string;
+	storageDir?: string;
+	log?: LogFn;
+	/** Override the rate-limit interval in ms (default 12h). Useful in tests. */
+	intervalMs?: number;
+	/** When true, ignore the rate-limit and always perform the GitHub query. */
+	force?: boolean;
+	/** Inject a clock for testing. */
+	now?: () => number;
+	/** Override the latest-version resolver (for testing). */
+	resolveLatest?: () => Promise<string>;
+	/** Override the installed-version resolver (for testing). */
+	queryInstalled?: (binaryPath: string) => Promise<string | null>;
+};
+
+/**
+ * Begin a background check for a newer aer release. Resolves with details about
+ * an available update, or null when no upgrade is needed for any of the following
+ * reasons: the rate-limit window hasn't elapsed since the last check, the binary
+ * couldn't be queried for its version, the latest tag matches what's installed,
+ * the user was already prompted for this version, or the network call failed
+ * (logged but not re-thrown).
+ *
+ * The installed version is read by running `<aerPath> --version` rather than
+ * trusting any cached VERSION file — that way the check survives upgrades
+ * performed outside the plugin (e.g. by `aer upgrade`) and also works for users
+ * who installed aer themselves on PATH.
+ *
+ * The lastCheck timestamp is persisted as soon as the GitHub query runs, so
+ * we don't query repeatedly even if no update is found. The lastPromptVersion
+ * is NOT persisted here — callers must invoke `recordPromptedVersion` once
+ * they've actually surfaced the prompt to the user.
+ */
+export async function checkForUpdate(opts: UpdateCheckOptions): Promise<PendingUpdate | null> {
+	const storageDir = opts.storageDir ?? defaultStorageDir();
+	const log = opts.log ?? (() => {});
+	const intervalMs = opts.intervalMs ?? UPDATE_CHECK_INTERVAL_MS;
+	const now = opts.now?.() ?? Date.now();
+
+	const state = await readUpdateState(storageDir);
+	if (!opts.force && state.lastCheck && now - state.lastCheck < intervalMs) {
+		return null;
+	}
+
+	const queryFn = opts.queryInstalled ?? queryBinaryVersion;
+	const installed = await queryFn(opts.aerPath);
+	if (!installed) {
+		log(`aer update check skipped: could not determine installed version from ${opts.aerPath}`);
+		return null;
+	}
+
+	const resolver = opts.resolveLatest ?? resolveLatestVersion;
+	let latest: string;
+	try {
+		latest = await resolver();
+	} catch (err) {
+		log(`aer update check failed: ${(err as Error).message}`);
+		return null;
+	}
+
+	await writeUpdateState(storageDir, { ...state, lastCheck: now });
+
+	if (!latest || normalizeVersion(latest) === normalizeVersion(installed)) {
+		return null;
+	}
+
+	if (state.lastPromptVersion && normalizeVersion(state.lastPromptVersion) === normalizeVersion(latest)) {
+		return null;
+	}
+
+	return { installed, latest };
+}
+
+function normalizeVersion(v: string): string {
+	const trimmed = v.trim();
+	return trimmed.startsWith('v') ? trimmed.slice(1) : trimmed;
+}
+
+/**
+ * Run the given aer binary with `--version` and parse the reported version.
+ * Returns null if the binary doesn't run, doesn't print recognizable output,
+ * or takes too long.
+ */
+export async function queryBinaryVersion(binaryPath: string): Promise<string | null> {
+	return new Promise((resolvePromise) => {
+		let stdout = '';
+		let stderr = '';
+		let settled = false;
+		const finish = (result: string | null): void => {
+			if (settled) return;
+			settled = true;
+			resolvePromise(result);
+		};
+
+		let child;
+		try {
+			child = spawn(binaryPath, ['--version'], {
+				stdio: ['ignore', 'pipe', 'pipe'],
+				env: { ...process.env, AER_AUTOUPDATE_DISABLED: '1' },
+			});
+		} catch {
+			finish(null);
+			return;
+		}
+
+		const timer = setTimeout(() => {
+			child.kill();
+			finish(null);
+		}, 5000);
+
+		child.stdout?.on('data', (chunk) => {
+			stdout += chunk.toString();
+		});
+		child.stderr?.on('data', (chunk) => {
+			stderr += chunk.toString();
+		});
+		child.on('error', () => {
+			clearTimeout(timer);
+			finish(null);
+		});
+		child.on('exit', (code) => {
+			clearTimeout(timer);
+			if (code !== 0) {
+				finish(null);
+				return;
+			}
+			const output = stdout || stderr;
+			// Match strings like "v1.0.0-beta.5" or "1.0.0".
+			const match = output.match(/v?\d+\.\d+\.\d+(?:[\w.-]+)?/);
+			if (!match) {
+				finish(null);
+				return;
+			}
+			const raw = match[0];
+			finish(raw.startsWith('v') ? raw : `v${raw}`);
+		});
+	});
+}
+
+/**
+ * Persist that the user has been prompted about a version, so subsequent
+ * commands don't repeat the prompt for that same version.
+ */
+export async function recordPromptedVersion(version: string, opts: { storageDir?: string } = {}): Promise<void> {
+	const storageDir = opts.storageDir ?? defaultStorageDir();
+	const state = await readUpdateState(storageDir);
+	await writeUpdateState(storageDir, { ...state, lastPromptVersion: version });
+}
+
+/** Download and install a specific aer version into the plugin's storage dir. */
+export async function installAerVersion(
+	version: string,
+	opts: { storageDir?: string; log?: LogFn } = {},
+): Promise<string> {
+	const storageDir = opts.storageDir ?? defaultStorageDir();
+	const log = opts.log ?? (() => {});
+	const newPath = await downloadAndExtract(storageDir, version, log);
+	cachedAerPath = newPath;
+	return newPath;
+}
+
+async function readUpdateState(storageDir: string): Promise<UpdateState> {
+	try {
+		const contents = await readFile(join(storageDir, UPDATE_STATE_FILE), 'utf8');
+		const parsed = JSON.parse(contents);
+		if (parsed && typeof parsed === 'object') {
+			return parsed as UpdateState;
+		}
+	} catch {
+		// Missing or corrupt state — treat as empty.
+	}
+	return {};
+}
+
+async function writeUpdateState(storageDir: string, state: UpdateState): Promise<void> {
+	await mkdir(storageDir, { recursive: true });
+	await writeFile(join(storageDir, UPDATE_STATE_FILE), JSON.stringify(state), 'utf8');
 }
 
 async function resolveLatestVersion(): Promise<string> {
@@ -267,7 +529,7 @@ async function isExecutable(filePath: string): Promise<boolean> {
 	}
 }
 
-function extractBinary(archivePath: string, binaryName: string, destDir: string): string {
+function readBinaryFromArchive(archivePath: string, binaryName: string): Buffer {
 	const zip = new AdmZip(archivePath);
 	const entry = zip
 		.getEntries()
@@ -275,8 +537,7 @@ function extractBinary(archivePath: string, binaryName: string, destDir: string)
 	if (!entry) {
 		throw new Error(`${binaryName} was not found inside the downloaded archive.`);
 	}
-	zip.extractEntryTo(entry, destDir, false, true);
-	return join(destDir, binaryName);
+	return entry.getData();
 }
 
 async function requestJson(url: string): Promise<{ statusCode: number; body: any }> {
