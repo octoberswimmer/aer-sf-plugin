@@ -173,5 +173,4 @@ node bin/dev.js aer apex run test --help
 This plugin is open source, licensed under BSD-3-Clause.
 
 Note that [aer](https://github.com/octoberswimmer/aer-dist) itself is not open
-source — it is distributed as a binary under its own license. You must obtain
-and install aer separately for the plugin to do anything useful.
+source — it is distributed as a binary under its own license.
