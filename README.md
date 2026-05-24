@@ -1,21 +1,21 @@
 # @octoberswimmer/aer-sf-plugin
 
 A [Salesforce CLI](https://developer.salesforce.com/tools/salesforcecli) plugin
-that runs Apex tests locally using [aer](https://github.com/octoberswimmer/aer-dist).
+that runs Apex tests and previews Lightning Web Components locally using
+[aer](https://github.com/octoberswimmer/aer-dist).
 
 ```
 sf aer apex run test
 ```
 
-works the same way as
+works the same way as `sf apex run test`, but runs tests locally via `aer test`.
 
 ```
-sf apex run test
+sf aer lightning dev component
 ```
 
-but instead of submitting tests to a Salesforce org, it stages your project's
-Apex source into a temp directory and invokes `aer test` against the staged
-copy.
+works the same way as `sf lightning dev component`, but previews LWC components
+locally via `aer server`.
 
 ## Requirements
 
@@ -34,6 +34,8 @@ sf plugins install @octoberswimmer/aer-sf-plugin
 ```
 
 ## Usage
+
+### Apex tests
 
 Run every test in the project:
 
@@ -64,6 +66,30 @@ With code coverage:
 ```
 sf aer apex run test --code-coverage --output-dir test-results
 ```
+
+### LWC component preview
+
+Select a component interactively and launch the preview:
+
+```
+sf aer lightning dev component
+```
+
+Preview a specific component by name:
+
+```
+sf aer lightning dev component --name myComponent
+```
+
+Open the component list in the browser instead of selecting interactively:
+
+```
+sf aer lightning dev component --client-select
+```
+
+The development server uses `aer server --watch` to serve your project's
+source directly (no staging), so changes to component HTML, CSS, and
+JavaScript are reflected immediately via hot module replacement.
 
 ## Locating the aer binary
 
