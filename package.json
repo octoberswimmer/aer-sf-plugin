@@ -1,7 +1,7 @@
 {
 	"name": "@octoberswimmer/aer-sf-plugin",
 	"description": "Salesforce CLI plugin that runs Apex tests and previews LWC components locally using aer.",
-	"version": "0.0.4",
+	"version": "0.0.5",
 	"author": "Christian G. Warden",
 	"bugs": "https://github.com/octoberswimmer/aer-sf-plugin/issues",
 	"homepage": "https://github.com/octoberswimmer/aer-sf-plugin",
