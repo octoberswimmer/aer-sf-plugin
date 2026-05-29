@@ -42,6 +42,10 @@ The `aer` binary (https://github.com/octoberswimmer/aer-dist) is resolved in the
 
   <%= config.bin %> <%= command.id %> --code-coverage --output-dir test-results
 
+- Run tests even when some classes have parse or type errors:
+
+  <%= config.bin %> <%= command.id %> --skip-errors
+
 # flags.target-org.summary
 
 Username or alias of the target org. Accepted for compatibility with `sf apex run test`; aer runs locally and ignores this flag.
@@ -101,6 +105,10 @@ Accepted for compatibility; not yet wired into aer's output.
 # flags.api-version.summary
 
 Accepted for compatibility; aer does not talk to the org API.
+
+# flags.skip-errors.summary
+
+Display but skip parse and type checking errors, allowing tests to run if they don't depend on the affected code. Passed through to aer as `--skip-errors`.
 
 # warn.testLevelInOrgUnsupported
 

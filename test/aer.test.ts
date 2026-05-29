@@ -66,6 +66,27 @@ describe('buildAerArgs', () => {
 		expect(args[args.indexOf('--coverage') + 1]).to.equal('/out/cov.json');
 	});
 
+	it('adds --skip-errors when skipErrors is set', () => {
+		const args = buildAerArgs({
+			stagedDir: '/tmp/stage',
+			filters: [],
+			resultFormat: 'human',
+			verbose: false,
+			skipErrors: true,
+		});
+		expect(args).to.include('--skip-errors');
+	});
+
+	it('does not pass --skip-errors when skipErrors is unset', () => {
+		const args = buildAerArgs({
+			stagedDir: '/tmp/stage',
+			filters: [],
+			resultFormat: 'human',
+			verbose: false,
+		});
+		expect(args).to.not.include('--skip-errors');
+	});
+
 	it('does not pass --junit or --json for human format', () => {
 		const args = buildAerArgs({
 			stagedDir: '/tmp/stage',

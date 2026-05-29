@@ -9,6 +9,7 @@ export type AerInvocation = {
 	resultFile?: string;
 	coverageFile?: string;
 	verbose: boolean;
+	skipErrors?: boolean;
 };
 
 export function buildAerArgs(inv: AerInvocation): string[] {
@@ -26,6 +27,9 @@ export function buildAerArgs(inv: AerInvocation): string[] {
 	}
 	if (inv.coverageFile) {
 		args.push('--coverage', inv.coverageFile);
+	}
+	if (inv.skipErrors) {
+		args.push('--skip-errors');
 	}
 	return args;
 }

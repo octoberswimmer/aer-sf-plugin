@@ -99,6 +99,9 @@ export default class AerApexRunTest extends SfCommand<AerApexRunTestResult> {
 		'api-version': Flags.string({
 			summary: messages.getMessage('flags.api-version.summary'),
 		}),
+		'skip-errors': Flags.boolean({
+			summary: messages.getMessage('flags.skip-errors.summary'),
+		}),
 	};
 
 	public async run(): Promise<AerApexRunTestResult> {
@@ -187,6 +190,7 @@ export default class AerApexRunTest extends SfCommand<AerApexRunTestResult> {
 			resultFile,
 			coverageFile,
 			verbose: flags['detailed-coverage'] ?? false,
+			skipErrors: flags['skip-errors'] ?? false,
 		});
 
 		let exitCode = 0;

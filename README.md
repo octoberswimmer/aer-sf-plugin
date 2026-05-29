@@ -67,6 +67,12 @@ With code coverage:
 sf aer apex run test --code-coverage --output-dir test-results
 ```
 
+Run tests even when some classes have parse or type errors:
+
+```
+sf aer apex run test --skip-errors
+```
+
 ### LWC component preview
 
 Select a component interactively and launch the preview:
@@ -180,6 +186,7 @@ discarded. Listing order in `sfdx-project.json` does not affect the outcome.
 | `--result-format human\|junit\|json` | passed through (tap falls back to human) |
 | `--output-dir` | result files written here |
 | `--code-coverage` | passed to aer as `--coverage` (JSON file) |
+| `--skip-errors` | passed to aer as `--skip-errors` (display but skip parse/type errors so unaffected tests still run) |
 | `--test-level RunLocalTests`, `RunSpecifiedTests` | runs locally |
 | `--test-level RunAllTestsInOrg` | warns; falls back to running all local tests |
 | `--suite-names` | warns; not yet implemented |
