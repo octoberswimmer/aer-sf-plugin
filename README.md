@@ -161,10 +161,21 @@ aer does not process `replacements`, so without staging, tokens like
 `{NAMESPACE}` would remain literal in the loaded source and code such as
 `Label.get('{NAMESPACE}', labelName, language)` would fail at runtime. The
 plugin reads `replacements` from `sfdx-project.json` and applies them during
-staging — `stringToReplace` or `regexToReplace` paired with either
-`replaceWithFile` or `replaceWithEnv`. A single trailing newline is trimmed
-from `replaceWithFile` contents, matching
-`@salesforce/source-deploy-retrieve`.
+staging, matching `@salesforce/source-deploy-retrieve` so that the staged
+source is byte-for-byte what `sf project deploy start` would deploy. Every
+property of the replacements schema is supported:
+
+- **Target** — `filename` (an exact project-relative path) or `glob`.
+- **Match** — `stringToReplace` (literal) or `regexToReplace` (a regular
+  expression). Both replace all occurrences.
+- **Replacement** — `replaceWithEnv` (an environment variable) or
+  `replaceWithFile` (a file's contents, with surrounding whitespace trimmed).
+- **Conditional** — `replaceWhenEnv` applies the replacement only when every
+  listed `{ env, value }` matches the environment; `allowUnsetEnvVariable`
+  removes the string (replaces with nothing) when the `replaceWithEnv` variable
+  is unset instead of erroring.
+
+Replacements only touch text files; binary files are copied through untouched.
 
 ### sfdx-project.json `namespace` sets aer's default namespace
 

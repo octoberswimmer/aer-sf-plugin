@@ -1,15 +1,20 @@
 import { mkdir, mkdtemp, readFile, readdir, writeFile, rm } from 'node:fs/promises';
 import { rmSync } from 'node:fs';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { minimatch } from 'minimatch';
 
+export type ReplaceWhenEnv = { env: string; value: string | number | boolean };
+
 export type Replacement = {
-	glob: string;
+	glob?: string;
+	filename?: string;
 	stringToReplace?: string;
 	regexToReplace?: string;
 	replaceWithFile?: string;
 	replaceWithEnv?: string;
+	replaceWhenEnv?: ReplaceWhenEnv[];
+	allowUnsetEnvVariable?: boolean;
 };
 
 export type PackageDirectory = { path: string };
@@ -57,9 +62,64 @@ async function walk(root: string): Promise<string[]> {
 	return out;
 }
 
-function matchesGlob(glob: string, relPath: string): boolean {
-	const normalized = relPath.split(sep).join('/');
-	return minimatch(normalized, glob, { matchBase: true, dot: true });
+const posixify = (p: string): string => p.split(sep).join('/');
+
+// A replacement targets files by either `filename` (a project-relative path)
+// or `glob`, matching the `sfdx-project.json` replacements schema. Paths are
+// absolute here; `filename` is matched as a suffix (so a leading `/` in the
+// config is tolerated) and `glob` is prefixed with `**/`, mirroring
+// @salesforce/source-deploy-retrieve's `matchesFile`.
+function matchesReplacement(r: Replacement, absPath: string): boolean {
+	const p = posixify(absPath);
+	return (
+		(typeof r.filename === 'string' && p.endsWith(posixify(r.filename))) ||
+		(typeof r.glob === 'string' && minimatch(p, `**/${r.glob}`))
+	);
+}
+
+// A replacement is only applied when every `replaceWhenEnv` condition matches
+// the current environment (values compared as strings), matching SDR's
+// `envFilter`.
+function envConditionsMet(r: Replacement): boolean {
+	return (
+		!r.replaceWhenEnv ||
+		r.replaceWhenEnv.every((c) => process.env[c.env] === String(c.value))
+	);
+}
+
+// Escape a literal search string so it can be used as a global regex, matching
+// SDR's `stringToRegex`. Using regex replacement (rather than split/join) means
+// `$`-substitutions in the replacement value behave as they do in the sf CLI.
+function stringToRegex(input: string): RegExp {
+	// eslint-disable-next-line no-useless-escape
+	return new RegExp(input.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g');
+}
+
+// Files SDR treats as text (and therefore eligible for replacement). Known text
+// extensions short-circuit; otherwise a NUL byte in the head marks it binary.
+const textExtensions = new Set([
+	'.cls',
+	'.xml',
+	'.json',
+	'.js',
+	'.css',
+	'.html',
+	'.htm',
+	'.txt',
+	'.md',
+]);
+
+function isTextFile(path: string, contents: Buffer): boolean {
+	if (textExtensions.has(extname(path).toLowerCase())) {
+		return true;
+	}
+	const len = Math.min(contents.length, 512);
+	for (let i = 0; i < len; i++) {
+		if (contents[i] === 0) {
+			return false;
+		}
+	}
+	return true;
 }
 
 export async function stageSource(opts: {
@@ -102,61 +162,80 @@ export async function stageSource(opts: {
 	}
 	const filesToStage: SourceFile[] = [...dedupedByKey.values(), ...passthrough];
 
+	// Drop replacements whose `replaceWhenEnv` conditions don't match the current
+	// environment. This happens before resolving `replaceWithEnv` values, so a
+	// filtered-out replacement with an unset variable never errors.
+	const activeReplacements = replacements.filter(envConditionsMet);
+
+	// Resolve a replacement's value lazily and cache it, so an unset variable
+	// only errors when a file actually matches — mirroring SDR, which resolves
+	// values while marking matched components.
 	const fileValueCache = new Map<string, string>();
-	const compiledReplacements = await Promise.all(
-		replacements.map(async (r) => {
-			let value: string;
-			if (r.replaceWithFile) {
-				const abs = resolve(projectRoot, r.replaceWithFile);
-				if (!fileValueCache.has(abs)) {
-					const content = await readFile(abs, 'utf8');
-					// Match @salesforce/source-deploy-retrieve: trim a single trailing newline.
-					const trimmed = content.endsWith('\r\n')
-						? content.slice(0, -2)
-						: content.endsWith('\n')
-							? content.slice(0, -1)
-							: content;
-					fileValueCache.set(abs, trimmed);
-				}
-				value = fileValueCache.get(abs)!;
-			} else if (r.replaceWithEnv) {
-				const env = process.env[r.replaceWithEnv];
-				if (env === undefined) {
+	const valueCache = new Map<Replacement, string>();
+	const resolveValue = async (r: Replacement): Promise<string> => {
+		const cached = valueCache.get(r);
+		if (cached !== undefined) {
+			return cached;
+		}
+		let value: string;
+		if (typeof r.replaceWithEnv === 'string') {
+			const env = process.env[r.replaceWithEnv];
+			if (env === undefined) {
+				if (r.allowUnsetEnvVariable) {
+					value = '';
+				} else {
 					throw new Error(
-						`sfdx-project.json replacement references missing environment variable: ${r.replaceWithEnv}`,
+						`"${r.replaceWithEnv}" is in sfdx-project.json as a value for "replaceWithEnv" property, but it's not set in your environment.`,
 					);
 				}
-				value = env;
 			} else {
-				throw new Error(
-					'sfdx-project.json replacement entry has neither replaceWithFile nor replaceWithEnv',
-				);
+				value = env;
 			}
-			return { ...r, value };
-		}),
-	);
+		} else if (typeof r.replaceWithFile === 'string') {
+			const abs = resolve(projectRoot, r.replaceWithFile);
+			if (!fileValueCache.has(abs)) {
+				// Match @salesforce/source-deploy-retrieve: trim surrounding whitespace.
+				fileValueCache.set(abs, (await readFile(abs, 'utf8')).trim());
+			}
+			value = fileValueCache.get(abs)!;
+		} else {
+			throw new Error(
+				'sfdx-project.json replacement entry has neither replaceWithFile nor replaceWithEnv',
+			);
+		}
+		valueCache.set(r, value);
+		return value;
+	};
 
 	let fileCount = 0;
-	for (const f of filesToStage) {
-		const target = join(tempDir, f.relativeToProject);
-		await mkdir(dirname(target), { recursive: true });
+	try {
+		for (const f of filesToStage) {
+			const target = join(tempDir, f.relativeToProject);
+			await mkdir(dirname(target), { recursive: true });
 
-		const matching = compiledReplacements.filter((r) => matchesGlob(r.glob, f.relativeToProject));
-		if (matching.length === 0) {
 			const buf = await readFile(f.fullPath);
-			await writeFile(target, buf);
-		} else {
-			let text = await readFile(f.fullPath, 'utf8');
-			for (const r of matching) {
-				if (r.stringToReplace !== undefined) {
-					text = text.split(r.stringToReplace).join(r.value);
-				} else if (r.regexToReplace !== undefined) {
-					text = text.replace(new RegExp(r.regexToReplace, 'g'), r.value);
+			const matching = activeReplacements.filter((r) => matchesReplacement(r, f.fullPath));
+			// Binary files are copied untouched, matching SDR's text-file guard.
+			if (matching.length === 0 || !isTextFile(f.fullPath, buf)) {
+				await writeFile(target, buf);
+			} else {
+				let text = buf.toString('utf8');
+				for (const r of matching) {
+					// eslint-disable-next-line no-await-in-loop
+					const value = await resolveValue(r);
+					if (typeof r.stringToReplace === 'string') {
+						text = text.replace(stringToRegex(r.stringToReplace), value);
+					} else if (typeof r.regexToReplace === 'string') {
+						text = text.replace(new RegExp(r.regexToReplace, 'g'), value);
+					}
 				}
+				await writeFile(target, text);
 			}
-			await writeFile(target, text);
+			fileCount++;
 		}
-		fileCount++;
+	} catch (e) {
+		await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+		throw e;
 	}
 
 	const cleanup = async (): Promise<void> => {

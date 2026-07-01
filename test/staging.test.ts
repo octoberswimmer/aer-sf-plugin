@@ -259,6 +259,50 @@ describe('stageSource', () => {
 		expect(threw, 'expected stageSource to throw').to.equal(true);
 	});
 
+	it('applies replacements targeted by filename (exact project-relative path)', async () => {
+		await writeFileEnsuringDir(
+			join(project, 'force-app/main/default/classes/Target.cls'),
+			"String v = 'original';",
+		);
+		await writeFileEnsuringDir(
+			join(project, 'force-app/main/default/classes/Other.cls'),
+			"String v = 'original';",
+		);
+
+		process.env.AER_TEST_LABEL = 'replaced';
+		try {
+			const staged = await stageSource({
+				projectRoot: project,
+				packageDirectories: [{ path: 'force-app' }],
+				replacements: [
+					{
+						filename: 'force-app/main/default/classes/Target.cls',
+						stringToReplace: 'original',
+						replaceWithEnv: 'AER_TEST_LABEL',
+					},
+				],
+			});
+
+			try {
+				const target = await readFile(
+					join(staged.dir, 'force-app/main/default/classes/Target.cls'),
+					'utf8',
+				);
+				const other = await readFile(
+					join(staged.dir, 'force-app/main/default/classes/Other.cls'),
+					'utf8',
+				);
+				expect(target).to.equal("String v = 'replaced';");
+				// A different file with the same token is left untouched.
+				expect(other).to.equal("String v = 'original';");
+			} finally {
+				await staged.cleanup();
+			}
+		} finally {
+			delete process.env.AER_TEST_LABEL;
+		}
+	});
+
 	it('regexToReplace performs a global regex replacement', async () => {
 		await writeFileEnsuringDir(
 			join(project, 'force-app/main/default/classes/Demo.cls'),
@@ -286,6 +330,150 @@ describe('stageSource', () => {
 			expect(cls).to.not.include('AAA');
 		} finally {
 			await staged.cleanup();
+		}
+	});
+
+	it('applies a replacement when replaceWhenEnv conditions all match', async () => {
+		await writeFileEnsuringDir(
+			join(project, 'force-app/main/default/classes/Conditional.cls'),
+			"String v = 'replaceMe';",
+		);
+
+		process.env.AER_TEST_DEST = 'PROD';
+		process.env.AER_TEST_VAL = 'yes';
+		try {
+			const staged = await stageSource({
+				projectRoot: project,
+				packageDirectories: [{ path: 'force-app' }],
+				replacements: [
+					{
+						glob: '**/*.cls',
+						stringToReplace: 'replaceMe',
+						replaceWithEnv: 'AER_TEST_VAL',
+						replaceWhenEnv: [{ env: 'AER_TEST_DEST', value: 'PROD' }],
+					},
+				],
+			});
+
+			try {
+				const cls = await readFile(
+					join(staged.dir, 'force-app/main/default/classes/Conditional.cls'),
+					'utf8',
+				);
+				expect(cls).to.equal("String v = 'yes';");
+			} finally {
+				await staged.cleanup();
+			}
+		} finally {
+			delete process.env.AER_TEST_DEST;
+			delete process.env.AER_TEST_VAL;
+		}
+	});
+
+	it('skips a replacement when replaceWhenEnv does not match — without resolving replaceWithEnv', async () => {
+		await writeFileEnsuringDir(
+			join(project, 'force-app/main/default/classes/Conditional.cls'),
+			"String v = 'replaceMe';",
+		);
+
+		// The gating env var is set to the wrong value, so the replacement is
+		// filtered out. The (unset) replaceWithEnv must therefore NOT error.
+		process.env.AER_TEST_DEST = 'SANDBOX';
+		delete process.env.AER_TEST_UNSET_VALUE;
+		try {
+			const staged = await stageSource({
+				projectRoot: project,
+				packageDirectories: [{ path: 'force-app' }],
+				replacements: [
+					{
+						glob: '**/*.cls',
+						stringToReplace: 'replaceMe',
+						replaceWithEnv: 'AER_TEST_UNSET_VALUE',
+						replaceWhenEnv: [{ env: 'AER_TEST_DEST', value: 'PROD' }],
+					},
+				],
+			});
+
+			try {
+				const cls = await readFile(
+					join(staged.dir, 'force-app/main/default/classes/Conditional.cls'),
+					'utf8',
+				);
+				// Left untouched.
+				expect(cls).to.equal("String v = 'replaceMe';");
+			} finally {
+				await staged.cleanup();
+			}
+		} finally {
+			delete process.env.AER_TEST_DEST;
+		}
+	});
+
+	it('removes the string when replaceWithEnv is unset and allowUnsetEnvVariable is true', async () => {
+		await writeFileEnsuringDir(
+			join(project, 'force-app/main/default/classes/HasNs.cls'),
+			'myNS__Thing t = new myNS__Thing();',
+		);
+
+		delete process.env.AER_TEST_BLANKABLE;
+		const staged = await stageSource({
+			projectRoot: project,
+			packageDirectories: [{ path: 'force-app' }],
+			replacements: [
+				{
+					filename: 'force-app/main/default/classes/HasNs.cls',
+					stringToReplace: 'myNS__',
+					replaceWithEnv: 'AER_TEST_BLANKABLE',
+					allowUnsetEnvVariable: true,
+				},
+			],
+		});
+
+		try {
+			const cls = await readFile(
+				join(staged.dir, 'force-app/main/default/classes/HasNs.cls'),
+				'utf8',
+			);
+			expect(cls).to.equal('Thing t = new Thing();');
+		} finally {
+			await staged.cleanup();
+		}
+	});
+
+	it('does not apply replacements to binary files', async () => {
+		// A .cls with a NUL byte is treated as binary and copied untouched even
+		// though the glob matches it.
+		const original = Buffer.from([0x72, 0x65, 0x70, 0x6c, 0x00, 0x61, 0x63, 0x65]); // "repl\0ace"
+		await mkdir(join(project, 'force-app/main/default/staticresources'), { recursive: true });
+		await writeFile(
+			join(project, 'force-app/main/default/staticresources/blob.resource'),
+			original,
+		);
+
+		process.env.AER_TEST_ANY = 'X';
+		try {
+			const staged = await stageSource({
+				projectRoot: project,
+				packageDirectories: [{ path: 'force-app' }],
+				replacements: [
+					{
+						glob: '**/*.resource',
+						stringToReplace: 'repl',
+						replaceWithEnv: 'AER_TEST_ANY',
+					},
+				],
+			});
+
+			try {
+				const out = await readFile(
+					join(staged.dir, 'force-app/main/default/staticresources/blob.resource'),
+				);
+				expect(out.equals(original)).to.equal(true);
+			} finally {
+				await staged.cleanup();
+			}
+		} finally {
+			delete process.env.AER_TEST_ANY;
 		}
 	});
 });
