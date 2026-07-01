@@ -25,6 +25,7 @@ export type AerApexRunTestResult = {
 };
 
 type SfProjectJsonContents = {
+	namespace?: string;
 	packageDirectories?: PackageDirectory[];
 	replacements?: Replacement[];
 };
@@ -191,6 +192,7 @@ export default class AerApexRunTest extends SfCommand<AerApexRunTestResult> {
 			coverageFile,
 			verbose: flags['detailed-coverage'] ?? false,
 			skipErrors: flags['skip-errors'] ?? false,
+			defaultNamespace: contents.namespace,
 		});
 
 		let exitCode = 0;

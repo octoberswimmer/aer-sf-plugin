@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { buildAerArgs } from '../src/aer.js';
+import { buildAerArgs, buildServerArgs } from '../src/aer.js';
 
 describe('buildAerArgs', () => {
 	it('starts with test <stagedDir>', () => {
@@ -96,5 +96,61 @@ describe('buildAerArgs', () => {
 		});
 		expect(args).to.not.include('--junit');
 		expect(args).to.not.include('--json');
+	});
+
+	it('adds --default-namespace when defaultNamespace is set', () => {
+		const args = buildAerArgs({
+			stagedDir: '/tmp/stage',
+			filters: [],
+			resultFormat: 'human',
+			verbose: false,
+			defaultNamespace: 'acme',
+		});
+		expect(args).to.include('--default-namespace');
+		expect(args[args.indexOf('--default-namespace') + 1]).to.equal('acme');
+	});
+
+	it('does not pass --default-namespace when defaultNamespace is unset', () => {
+		const args = buildAerArgs({
+			stagedDir: '/tmp/stage',
+			filters: [],
+			resultFormat: 'human',
+			verbose: false,
+		});
+		expect(args).to.not.include('--default-namespace');
+	});
+
+	it('does not pass --default-namespace when defaultNamespace is empty', () => {
+		const args = buildAerArgs({
+			stagedDir: '/tmp/stage',
+			filters: [],
+			resultFormat: 'human',
+			verbose: false,
+			defaultNamespace: '',
+		});
+		expect(args).to.not.include('--default-namespace');
+	});
+});
+
+describe('buildServerArgs', () => {
+	it('starts with server, the source paths, and --watch', () => {
+		const args = buildServerArgs(['/src/pkg-a', '/src/pkg-b']);
+		expect(args).to.deep.equal(['server', '/src/pkg-a', '/src/pkg-b', '--watch']);
+	});
+
+	it('adds --default-namespace when a namespace is set', () => {
+		const args = buildServerArgs(['/src/pkg-a'], 'acme');
+		expect(args).to.include('--default-namespace');
+		expect(args[args.indexOf('--default-namespace') + 1]).to.equal('acme');
+	});
+
+	it('does not add --default-namespace when namespace is undefined', () => {
+		const args = buildServerArgs(['/src/pkg-a']);
+		expect(args).to.not.include('--default-namespace');
+	});
+
+	it('does not add --default-namespace when namespace is empty', () => {
+		const args = buildServerArgs(['/src/pkg-a'], '');
+		expect(args).to.not.include('--default-namespace');
 	});
 });

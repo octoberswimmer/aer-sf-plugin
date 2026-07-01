@@ -4,6 +4,7 @@ import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages, SfProject } from '@salesforce/core';
 import select from '@inquirer/select';
 import { discoverLwcComponents } from '../../../../lwc.js';
+import { buildServerArgs } from '../../../../aer.js';
 import {
 	checkForUpdate,
 	ensureAerBinary,
@@ -18,6 +19,7 @@ const messages = Messages.loadMessages('@octoberswimmer/aer-sf-plugin', 'aer.lig
 type PackageDirectory = { path: string };
 
 type SfProjectJsonContents = {
+	namespace?: string;
 	packageDirectories?: PackageDirectory[];
 };
 
@@ -93,7 +95,7 @@ export default class AerLightningDevComponent extends SfCommand<AerLightningDevC
 		}
 
 		const sourcePaths = packageDirectories.map((pd) => resolve(projectRoot, pd.path));
-		const args = ['server', ...sourcePaths, '--watch'];
+		const args = buildServerArgs(sourcePaths, contents.namespace);
 
 		const previewPath = componentName ? `/dev/lwc/${componentName}` : '/dev/lwc';
 

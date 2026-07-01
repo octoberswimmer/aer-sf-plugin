@@ -10,10 +10,14 @@ export type AerInvocation = {
 	coverageFile?: string;
 	verbose: boolean;
 	skipErrors?: boolean;
+	defaultNamespace?: string;
 };
 
 export function buildAerArgs(inv: AerInvocation): string[] {
 	const args: string[] = ['test', inv.stagedDir];
+	if (inv.defaultNamespace) {
+		args.push('--default-namespace', inv.defaultNamespace);
+	}
 	for (const f of inv.filters) {
 		args.push('--filter', f);
 	}
@@ -30,6 +34,14 @@ export function buildAerArgs(inv: AerInvocation): string[] {
 	}
 	if (inv.skipErrors) {
 		args.push('--skip-errors');
+	}
+	return args;
+}
+
+export function buildServerArgs(sourcePaths: string[], defaultNamespace?: string): string[] {
+	const args = ['server', ...sourcePaths, '--watch'];
+	if (defaultNamespace) {
+		args.push('--default-namespace', defaultNamespace);
 	}
 	return args;
 }

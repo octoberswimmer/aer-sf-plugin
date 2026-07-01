@@ -166,6 +166,15 @@ staging — `stringToReplace` or `regexToReplace` paired with either
 from `replaceWithFile` contents, matching
 `@salesforce/source-deploy-retrieve`.
 
+### sfdx-project.json `namespace` sets aer's default namespace
+
+If `sfdx-project.json` has a non-empty `namespace`, the plugin passes it to aer
+as `--default-namespace` — both when running tests (`aer apex run test`) and
+when starting the component preview server (`aer lightning dev component`) — so
+the loaded code is treated as belonging to that namespace, matching how the
+package's own Apex resolves references in the org. An absent or empty
+`namespace` leaves the flag off.
+
 ### Duplicate Apex class names across `packageDirectories` are resolved
 
 If the same Apex class name appears in more than one `packageDirectories`
