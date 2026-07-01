@@ -87,6 +87,27 @@ describe('buildAerArgs', () => {
 		expect(args).to.not.include('--skip-errors');
 	});
 
+	it('adds --quiet when quiet is set', () => {
+		const args = buildAerArgs({
+			stagedDir: '/tmp/stage',
+			filters: [],
+			resultFormat: 'human',
+			verbose: false,
+			quiet: true,
+		});
+		expect(args).to.include('--quiet');
+	});
+
+	it('does not pass --quiet when quiet is unset', () => {
+		const args = buildAerArgs({
+			stagedDir: '/tmp/stage',
+			filters: [],
+			resultFormat: 'human',
+			verbose: false,
+		});
+		expect(args).to.not.include('--quiet');
+	});
+
 	it('does not pass --junit or --json for human format', () => {
 		const args = buildAerArgs({
 			stagedDir: '/tmp/stage',

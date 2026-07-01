@@ -100,7 +100,7 @@ Accepted for compatibility; aer does not poll an org.
 
 # flags.concise.summary
 
-Accepted for compatibility; not yet wired into aer's output.
+Only output failures and the summary (mapped to aer's --quiet).
 
 # flags.api-version.summary
 

@@ -207,10 +207,11 @@ discarded. Listing order in `sfdx-project.json` does not affect the outcome.
 | `--output-dir` | result files written here |
 | `--code-coverage` | passed to aer as `--coverage` (JSON file) |
 | `--skip-errors` | passed to aer as `--skip-errors` (display but skip parse/type errors so unaffected tests still run) |
+| `--concise` | passed to aer as `--quiet` (only output failures and the summary) |
 | `--test-level RunLocalTests`, `RunSpecifiedTests` | runs locally |
 | `--test-level RunAllTestsInOrg` | warns; falls back to running all local tests |
 | `--suite-names` | warns; not yet implemented |
-| `--target-org`, `--wait`, `--poll-interval`, `--synchronous`, `--api-version`, `--concise`, `--detailed-coverage` | accepted for compatibility; ignored (a warning is printed when any of these is supplied) |
+| `--target-org`, `--wait`, `--poll-interval`, `--synchronous`, `--api-version`, `--detailed-coverage` | accepted for compatibility; ignored (a warning is printed when any of these is supplied) |
 
 ## Development
 

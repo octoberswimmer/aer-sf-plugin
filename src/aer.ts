@@ -11,6 +11,7 @@ export type AerInvocation = {
 	verbose: boolean;
 	skipErrors?: boolean;
 	defaultNamespace?: string;
+	quiet?: boolean;
 };
 
 export function buildAerArgs(inv: AerInvocation): string[] {
@@ -34,6 +35,9 @@ export function buildAerArgs(inv: AerInvocation): string[] {
 	}
 	if (inv.skipErrors) {
 		args.push('--skip-errors');
+	}
+	if (inv.quiet) {
+		args.push('--quiet');
 	}
 	return args;
 }

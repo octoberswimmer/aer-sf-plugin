@@ -134,7 +134,6 @@ export default class AerApexRunTest extends SfCommand<AerApexRunTestResult> {
 		if (flags['poll-interval'] !== undefined) ignoredFlags.push('--poll-interval');
 		if (flags['api-version']) ignoredFlags.push('--api-version');
 		if (flags['detailed-coverage']) ignoredFlags.push('--detailed-coverage');
-		if (flags.concise) ignoredFlags.push('--concise');
 		if (flags['result-format'] === 'tap') ignoredFlags.push('--result-format=tap (using human instead)');
 		if (ignoredFlags.length > 0) {
 			this.warn(messages.getMessage('warn.ignoredFlags', [ignoredFlags.join(', ')]));
@@ -193,6 +192,7 @@ export default class AerApexRunTest extends SfCommand<AerApexRunTestResult> {
 			verbose: flags['detailed-coverage'] ?? false,
 			skipErrors: flags['skip-errors'] ?? false,
 			defaultNamespace: contents.namespace,
+			quiet: flags.concise ?? false,
 		});
 
 		let exitCode = 0;
