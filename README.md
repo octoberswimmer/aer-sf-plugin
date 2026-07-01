@@ -2,7 +2,7 @@
 
 A [Salesforce CLI](https://developer.salesforce.com/tools/salesforcecli) plugin
 that runs Apex tests and previews Lightning Web Components locally using
-[aer](https://github.com/octoberswimmer/aer-dist).
+[aer](https://aertest.com).
 
 ```
 sf aer apex run test
@@ -21,7 +21,7 @@ locally via `aer server`.
 
 - [Salesforce CLI](https://developer.salesforce.com/tools/salesforcecli) (`sf`)
 - Node.js >= 18
-- [aer](https://github.com/octoberswimmer/aer-dist) — the plugin will offer to
+- [aer](https://aertest.com) — the plugin will offer to
   download the right build for your platform on first use if it can't find one
   already (see [Locating the aer binary](#locating-the-aer-binary) below).
 
@@ -111,7 +111,7 @@ When the plugin needs to invoke `aer`, it tries these sources in order:
 3. `aer` discovered on `PATH`.
 4. If none of the above match and the terminal is interactive, the plugin asks
    for confirmation, then downloads the latest
-   [aer-dist](https://github.com/octoberswimmer/aer-dist) release for your
+   [aer](https://github.com/octoberswimmer/aer-dist) release for your
    platform, extracts it into the data directory above, and uses it for that
    run and all later runs.
 
@@ -226,5 +226,5 @@ node bin/dev.js aer apex run test --help
 
 This plugin is open source, licensed under BSD-3-Clause.
 
-Note that [aer](https://github.com/octoberswimmer/aer-dist) itself is not open
+Note that [aer](https://aertest.com) itself is not open
 source — it is distributed as a binary under its own license.
