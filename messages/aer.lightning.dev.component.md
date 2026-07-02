@@ -10,6 +10,8 @@ When running the development server, changes to component templates (HTML), styl
 
 If you run the command without flags, it displays a list of components found in your local DX project for you to choose to preview. Use the --name flag to bypass the prompt. Use --client-select to open the component list in the browser instead.
 
+Any `unpackagedMetadata` directories declared on your packageDirectories in sfdx-project.json are served alongside the packaged source, so components and Apex the server depends on from unpackaged metadata are available and previewable.
+
 The `aer` binary is resolved in the same order as `<%= config.bin %> aer apex run test` — see that command's help for details.
 
 # examples

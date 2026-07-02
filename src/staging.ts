@@ -17,7 +17,66 @@ export type Replacement = {
 	allowUnsetEnvVariable?: boolean;
 };
 
-export type PackageDirectory = { path: string };
+export type ApexTestAccess = {
+	permissionSets?: string[];
+	permissionSetLicenses?: string[];
+};
+
+export type PackageDirectory = {
+	path: string;
+	unpackagedMetadata?: { path: string };
+	apexTestAccess?: ApexTestAccess;
+};
+
+// Expand packageDirectories into the flat list of directories to stage,
+// appending each entry's `unpackagedMetadata` path. Unpackaged metadata is not
+// part of the package but must be available to compile and run tests against,
+// so it is staged alongside the packaged source.
+export function collectSourceDirectories(
+	packageDirectories: PackageDirectory[],
+): PackageDirectory[] {
+	const dirs: PackageDirectory[] = [];
+	for (const pd of packageDirectories) {
+		dirs.push({ path: pd.path });
+		if (pd.unpackagedMetadata?.path) {
+			dirs.push({ path: pd.unpackagedMetadata.path });
+		}
+	}
+	return dirs;
+}
+
+// Gather the permission sets named in every packageDirectory's `apexTestAccess`,
+// deduped while preserving first-seen order. These map to aer's --assign-perms.
+export function collectAssignPerms(packageDirectories: PackageDirectory[]): string[] {
+	const seen = new Set<string>();
+	const perms: string[] = [];
+	for (const pd of packageDirectories) {
+		for (const ps of pd.apexTestAccess?.permissionSets ?? []) {
+			if (!seen.has(ps)) {
+				seen.add(ps);
+				perms.push(ps);
+			}
+		}
+	}
+	return perms;
+}
+
+// Gather the permission set licenses named in every packageDirectory's
+// `apexTestAccess`, deduped while preserving first-seen order. aer has no
+// equivalent for these, so the caller warns that they are ignored.
+export function collectPermissionSetLicenses(packageDirectories: PackageDirectory[]): string[] {
+	const seen = new Set<string>();
+	const licenses: string[] = [];
+	for (const pd of packageDirectories) {
+		for (const psl of pd.apexTestAccess?.permissionSetLicenses ?? []) {
+			if (!seen.has(psl)) {
+				seen.add(psl);
+				licenses.push(psl);
+			}
+		}
+	}
+	return licenses;
+}
 
 export type StagingResult = {
 	dir: string;

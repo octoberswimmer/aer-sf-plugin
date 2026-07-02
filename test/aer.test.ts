@@ -151,6 +151,39 @@ describe('buildAerArgs', () => {
 		});
 		expect(args).to.not.include('--default-namespace');
 	});
+
+	it('passes each assignPerms entry via --assign-perms', () => {
+		const args = buildAerArgs({
+			stagedDir: '/tmp/stage',
+			filters: [],
+			resultFormat: 'human',
+			verbose: false,
+			assignPerms: ['Permission_Set_1', 'Permission_Set_2'],
+		});
+		expect(args).to.include('--assign-perms');
+		const first = args.indexOf('--assign-perms');
+		expect(args[first + 1]).to.equal('Permission_Set_1');
+		const second = args.indexOf('--assign-perms', first + 1);
+		expect(args[second + 1]).to.equal('Permission_Set_2');
+	});
+
+	it('does not pass --assign-perms when assignPerms is unset or empty', () => {
+		const unset = buildAerArgs({
+			stagedDir: '/tmp/stage',
+			filters: [],
+			resultFormat: 'human',
+			verbose: false,
+		});
+		expect(unset).to.not.include('--assign-perms');
+		const empty = buildAerArgs({
+			stagedDir: '/tmp/stage',
+			filters: [],
+			resultFormat: 'human',
+			verbose: false,
+			assignPerms: [],
+		});
+		expect(empty).to.not.include('--assign-perms');
+	});
 });
 
 describe('buildServerArgs', () => {

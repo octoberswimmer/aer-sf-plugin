@@ -13,6 +13,11 @@ Source is staged into a temporary directory before invoking aer. The staging ste
 1. When the same Apex class name appears in more than one packageDirectories entry, the copy whose full path sorts alphabetically last wins.
 2. The `replacements` configuration in sfdx-project.json (stringToReplace / regexToReplace + replaceWithFile / replaceWithEnv) is applied to file contents during staging.
 
+Two package-version-creation-test settings from sfdx-project.json are also honored:
+
+- `unpackagedMetadata.path` on a packageDirectories entry is staged alongside the packaged source so tests can compile and run against it.
+- `apexTestAccess.permissionSets` is passed to aer as `--assign-perms` so the tests run with those permission sets assigned to the sandbox user. `apexTestAccess.permissionSetLicenses` has no local equivalent and is ignored with a warning.
+
 The `aer` binary (https://github.com/octoberswimmer/aer-dist) is resolved in the following order:
 
 1. The `AER_BIN` environment variable, when set to an executable file.
@@ -121,6 +126,10 @@ Display but skip parse and type checking errors, allowing tests to run if they d
 # warn.ignoredFlags
 
 The following flags were accepted for compatibility but have no effect when running tests locally with aer: %s
+
+# warn.permissionSetLicensesUnsupported
+
+apexTestAccess.permissionSetLicenses is not supported when running tests locally with aer; the following licenses were ignored: %s
 
 # warn.aerExit
 

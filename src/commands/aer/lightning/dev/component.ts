@@ -4,6 +4,7 @@ import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages, SfProject } from '@salesforce/core';
 import select from '@inquirer/select';
 import { discoverLwcComponents } from '../../../../lwc.js';
+import { collectSourceDirectories, type PackageDirectory } from '../../../../staging.js';
 import { buildServerArgs } from '../../../../aer.js';
 import {
 	checkForUpdate,
@@ -15,8 +16,6 @@ import {
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@octoberswimmer/aer-sf-plugin', 'aer.lightning.dev.component');
-
-type PackageDirectory = { path: string };
 
 type SfProjectJsonContents = {
 	namespace?: string;
@@ -54,6 +53,10 @@ export default class AerLightningDevComponent extends SfCommand<AerLightningDevC
 		const projectRoot = project.getPath();
 		const contents = project.getSfProjectJson().getContents() as unknown as SfProjectJsonContents;
 		const packageDirectories = contents.packageDirectories ?? [];
+		// Serve the packaged source plus any unpackagedMetadata directories, so
+		// components and Apex the server depends on from unpackaged metadata are
+		// available and previewable.
+		const sourceDirectories = collectSourceDirectories(packageDirectories);
 
 		if (flags['target-org']) {
 			this.warn(messages.getMessage('warn.ignoredFlags', ['--target-org']));
@@ -76,7 +79,7 @@ export default class AerLightningDevComponent extends SfCommand<AerLightningDevC
 		const clientSelect = flags['client-select'] ?? false;
 
 		if (!clientSelect) {
-			const components = await discoverLwcComponents(projectRoot, packageDirectories);
+			const components = await discoverLwcComponents(projectRoot, sourceDirectories);
 			if (components.length === 0) {
 				throw messages.createError('error.noLwcComponents');
 			}
@@ -94,7 +97,7 @@ export default class AerLightningDevComponent extends SfCommand<AerLightningDevC
 			}
 		}
 
-		const sourcePaths = packageDirectories.map((pd) => resolve(projectRoot, pd.path));
+		const sourcePaths = sourceDirectories.map((pd) => resolve(projectRoot, pd.path));
 		const args = buildServerArgs(sourcePaths, contents.namespace);
 
 		const previewPath = componentName ? `/dev/lwc/${componentName}` : '/dev/lwc';

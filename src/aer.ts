@@ -12,6 +12,7 @@ export type AerInvocation = {
 	skipErrors?: boolean;
 	defaultNamespace?: string;
 	quiet?: boolean;
+	assignPerms?: string[];
 };
 
 export function buildAerArgs(inv: AerInvocation): string[] {
@@ -38,6 +39,9 @@ export function buildAerArgs(inv: AerInvocation): string[] {
 	}
 	if (inv.quiet) {
 		args.push('--quiet');
+	}
+	for (const perm of inv.assignPerms ?? []) {
+		args.push('--assign-perms', perm);
 	}
 	return args;
 }

@@ -2,7 +2,14 @@ import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages, SfProject } from '@salesforce/core';
-import { stageSource, type Replacement, type PackageDirectory } from '../../../../staging.js';
+import {
+	stageSource,
+	collectSourceDirectories,
+	collectAssignPerms,
+	collectPermissionSetLicenses,
+	type Replacement,
+	type PackageDirectory,
+} from '../../../../staging.js';
 import { buildAerArgs, runAer } from '../../../../aer.js';
 import {
 	checkForUpdate,
@@ -156,9 +163,19 @@ export default class AerApexRunTest extends SfCommand<AerApexRunTestResult> {
 			? checkForUpdate({ aerPath, log: (m) => this.log(m) }).catch(() => null)
 			: Promise.resolve(null);
 
+		const assignPerms = collectAssignPerms(packageDirectories);
+		const permissionSetLicenses = collectPermissionSetLicenses(packageDirectories);
+		if (permissionSetLicenses.length > 0) {
+			this.warn(
+				messages.getMessage('warn.permissionSetLicensesUnsupported', [
+					permissionSetLicenses.join(', '),
+				]),
+			);
+		}
+
 		const staged = await stageSource({
 			projectRoot,
-			packageDirectories,
+			packageDirectories: collectSourceDirectories(packageDirectories),
 			replacements: contents.replacements,
 		});
 
@@ -193,6 +210,7 @@ export default class AerApexRunTest extends SfCommand<AerApexRunTestResult> {
 			skipErrors: flags['skip-errors'] ?? false,
 			defaultNamespace: contents.namespace,
 			quiet: flags.concise ?? false,
+			assignPerms,
 		});
 
 		let exitCode = 0;

@@ -198,6 +198,55 @@ To match sf's behaviour, the plugin dedupes `.cls` / `.cls-meta.xml` /
 copy whose full path sorts alphabetically last is staged; the others are
 discarded. Listing order in `sfdx-project.json` does not affect the outcome.
 
+### `unpackagedMetadata` is staged with the packaged source
+
+Salesforce CLI lets you point a `packageDirectories` entry at metadata that
+isn't part of the package but is needed for package-version-creation tests:
+
+```json
+{
+  "packageDirectories": [
+    {
+      "path": "force-app",
+      "package": "TV_unl",
+      "default": true,
+      "unpackagedMetadata": { "path": "my-unpackaged-directory" }
+    }
+  ]
+}
+```
+
+The plugin stages each entry's `unpackagedMetadata.path` alongside the packaged
+source, so the Apex tests compile and run against that metadata just as they
+would during package version creation. The component preview server
+(`aer lightning dev component`) likewise serves the unpackaged directories, so
+LWC components and Apex it depends on from unpackaged metadata are available and
+previewable.
+
+### `apexTestAccess.permissionSets` are assigned to the test user
+
+If a `packageDirectories` entry declares `apexTestAccess`, the plugin passes its
+`permissionSets` to aer as `--assign-perms`, so the tests run with those
+permission sets assigned to the sandbox user:
+
+```json
+{
+  "packageDirectories": [
+    {
+      "path": "force-app",
+      "apexTestAccess": {
+        "permissionSets": ["Permission_Set_1", "Permission_Set_2"],
+        "permissionSetLicenses": ["SalesConsoleUser"]
+      }
+    }
+  ]
+}
+```
+
+Permission sets collected across all `packageDirectories` are deduplicated.
+`permissionSetLicenses` has no local equivalent in aer and is ignored with a
+warning.
+
 ## Flag compatibility with `sf apex run test`
 
 | flag | behaviour |
