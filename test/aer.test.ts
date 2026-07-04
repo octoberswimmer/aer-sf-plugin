@@ -207,4 +207,18 @@ describe('buildServerArgs', () => {
 		const args = buildServerArgs(['/src/pkg-a'], '');
 		expect(args).to.not.include('--default-namespace');
 	});
+
+	it('passes each assignPerms entry via --assign-perms', () => {
+		const args = buildServerArgs(['/src/pkg-a'], undefined, ['Permission_Set_1', 'Permission_Set_2']);
+		const first = args.indexOf('--assign-perms');
+		expect(first).to.be.greaterThan(-1);
+		expect(args[first + 1]).to.equal('Permission_Set_1');
+		const second = args.indexOf('--assign-perms', first + 1);
+		expect(args[second + 1]).to.equal('Permission_Set_2');
+	});
+
+	it('does not pass --assign-perms when assignPerms is unset or empty', () => {
+		expect(buildServerArgs(['/src/pkg-a'])).to.not.include('--assign-perms');
+		expect(buildServerArgs(['/src/pkg-a'], undefined, [])).to.not.include('--assign-perms');
+	});
 });

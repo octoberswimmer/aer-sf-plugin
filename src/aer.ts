@@ -46,10 +46,17 @@ export function buildAerArgs(inv: AerInvocation): string[] {
 	return args;
 }
 
-export function buildServerArgs(sourcePaths: string[], defaultNamespace?: string): string[] {
+export function buildServerArgs(
+	sourcePaths: string[],
+	defaultNamespace?: string,
+	assignPerms?: string[],
+): string[] {
 	const args = ['server', ...sourcePaths, '--watch'];
 	if (defaultNamespace) {
 		args.push('--default-namespace', defaultNamespace);
+	}
+	for (const perm of assignPerms ?? []) {
+		args.push('--assign-perms', perm);
 	}
 	return args;
 }

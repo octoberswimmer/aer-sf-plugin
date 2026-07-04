@@ -4,7 +4,7 @@ import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages, SfProject } from '@salesforce/core';
 import select from '@inquirer/select';
 import { discoverLwcComponents } from '../../../../lwc.js';
-import { collectSourceDirectories, type PackageDirectory } from '../../../../staging.js';
+import { collectAssignPerms, collectSourceDirectories, type PackageDirectory } from '../../../../staging.js';
 import { buildServerArgs } from '../../../../aer.js';
 import {
 	checkForUpdate,
@@ -98,7 +98,8 @@ export default class AerLightningDevComponent extends SfCommand<AerLightningDevC
 		}
 
 		const sourcePaths = sourceDirectories.map((pd) => resolve(projectRoot, pd.path));
-		const args = buildServerArgs(sourcePaths, contents.namespace);
+		const assignPerms = collectAssignPerms(packageDirectories);
+		const args = buildServerArgs(sourcePaths, contents.namespace, assignPerms);
 
 		const previewPath = componentName ? `/dev/lwc/${componentName}` : '/dev/lwc';
 

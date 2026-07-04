@@ -226,8 +226,9 @@ previewable.
 ### `apexTestAccess.permissionSets` are assigned to the test user
 
 If a `packageDirectories` entry declares `apexTestAccess`, the plugin passes its
-`permissionSets` to aer as `--assign-perms`, so the tests run with those
-permission sets assigned to the sandbox user:
+`permissionSets` to aer as `--assign-perms`, so tests and the component preview
+server (`aer lightning dev component`) run with those permission sets assigned
+to the sandbox user:
 
 ```json
 {

@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.0.8 — 2026-07-04
+
+- **The component preview server assigns `apexTestAccess` permission sets.**
+  `sf aer lightning dev component` now passes the `permissionSets` declared
+  under `apexTestAccess` to the server as `--assign-perms`, matching the
+  behavior of `sf aer apex run test`.
+
 ## v0.0.7 — 2026-07-03
 
 - **`unpackagedMetadata` is loaded alongside your package source.** If a
